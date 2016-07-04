@@ -12,6 +12,15 @@ class User(ndb.Model):
     """User profile"""
     name = ndb.StringProperty(required=True)
     email =ndb.StringProperty()
+    num_win = ndb.IntegerProperty(default = 0)
+    num_loss = ndb.IntegerProperty(default = 0)
+    win_ratio = ndb.FloatProperty()
+    def rank_form(self):
+        return RankForm(user_name = self.name,
+                        email = self.email,
+                        win_ratio = self.win_ratio,
+                        num_win = self.num_win,
+                        num_loss = self.num_loss)
 
 
 class Game(ndb.Model):
@@ -22,7 +31,7 @@ class Game(ndb.Model):
     target_word = ndb.StringProperty(required=True)
     attempts_remaining = ndb.IntegerProperty(required=True, default= 10)
     correct_attempts = ndb.IntegerProperty(required=True, default=0)
-    letters_discovered = ndb.StringProperty(default=' ')
+    letters_discovered = ndb.StringProperty(default='')
 
     @classmethod
     def new_game(cls, user, min, max, attempts, target_word, correct_attempts, letters_discovered):
@@ -69,6 +78,7 @@ class Score(ndb.Model):
     date = ndb.DateProperty(required=True)
     won = ndb.BooleanProperty(required=True)
     guesses = ndb.IntegerProperty(required=True)
+    attempts_allowed = ndb.IntegerProperty(required = True)
 
     def to_form(self):
         return ScoreForm(user_name=self.user.get().name, won=self.won,
@@ -84,6 +94,7 @@ class GameForm(messages.Message):
     user_name = messages.StringField(5, required=True)
     correct_attempts = messages.IntegerField(6, required=True)
     letters_discovered = messages.StringField(7, required=True)
+    game_cancelled = messages.BooleanField(8, required=True)
 
 
 class NewGameForm(messages.Message):
@@ -108,6 +119,8 @@ class ScoreForm(messages.Message):
     won = messages.BooleanField(3, required=True)
     guesses = messages.IntegerField(4, required=True)
 
+class GameForms(messages.Message):
+    items = messages.MessageField(GameForm,1,repeated = True)
 
 class ScoreForms(messages.Message):
     """Return multiple ScoreForms"""
@@ -117,3 +130,15 @@ class ScoreForms(messages.Message):
 class StringMessage(messages.Message):
     """StringMessage-- outbound (single) string message"""
     message = messages.StringField(1, required=True)
+
+class RankForm(messages.Message):
+    """Return a single RankForm"""
+    user_name = messages.StringField(1,required = True)
+    email = messages.StringField(2)
+    win_ratio = messages.FloatField(3)
+    num_win = messages.IntegerField(4)
+    num_loss = messages.IntegerField(5)
+
+class RankForms(messages.Message):
+    """Return multiple RankForms"""
+    items = messages.MessageField(RankForm,1,repeated = True)
