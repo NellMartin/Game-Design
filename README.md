@@ -3,22 +3,22 @@
 ## Set-Up Instructions:
 1.  Update the value of application in app.yaml to the app ID you have registered
  in the App Engine admin console and would like to use to host your instance of this sample.
-1.  Run the app with the devserver using dev_appserver.py DIR, and ensure it's
+2.  Run the app with the devserver using dev_appserver.py DIR, and ensure it's
  running by visiting the API Explorer - by default localhost:8080/_ah/api/explorer.
-1.  (Optional) Generate your client library(ies) with the endpoints tool.
+3.  (Optional) Generate your client library(ies) with the endpoints tool.
  Deploy your application.
 
  ---
 
 ##Game Description:
-Scientific Hangman is a single-player scientific word guessing game. Ready for some udacious science word game?. Each game begins with a random 'target', a word that is related to a traditional day-to day scienctific world.  The user will have the option to choose the minimum and maximum values of permitted attempts per each word.
+Scientific Hangman is a single-player scientific word guessing game, exactly as the traditional Hangman game. Ready for some udacious science word game?. Each game begins with a random chosen word, a word that is related to a traditional day-to day scienctific world.  The user will have the option to choose the minimum and maximum values of permitted attempts per each game.
 
-Once the user has entered these values, the game will give a special key the `url_safe_key`. Using the `Make_move` endpoint the user willb be able to guess the words letter. Each time the execution takes place the user will know if the word contains that letter or if he/she needs to try again. Upon the successfull whole entry of the world has been guessed, or upon the attempts remaining is 0, the user will know the complete secret word.  After each attempt, the user will know how many attempts remains, and also how the word is looking. Will the Scientific Hangman die? I hope not.
+Once the user has entered these values, the game will give a special key the `url_safe_key`. Through using the `Make_move` endpoint the user will be able to guess the words letter. Each time the execution takes place, the user, will know if the word contains that letter or if he/she needs to try again. Upon the successfull whole entry of the world has been guessed, or upon the attempts remaining is 0, the user will know the receive a message of the whole secret word.  After each attempt, the user will know how many attempts remains, and also how the word is being discovered. Will the Scientific Hangman survive?
 
 *Scoring*
-This game provides a way of cancelling an non-completed game, track of the user win/losses ratio, high scores for each user.
+This game provides a way of cancelling an non-completed game, track of the user win/losses ratio, and keep a history high scores for each user.
 
-This game will let a user with the lowest attempts wins to be the highest score. In other words, if you guess the word right without losing any point of attempts remaining you'll be likely to be in one of the tops position in the leader board.
+This game will let a user with the lowest attempts win,s to be the highest score. In other words, if you guess the word right without losing any point of attempts remaining, you'll be likely to be in one of the tops position in the leader board.
 
 ##Files Included:
  - api.py: Contains endpoints and game playing logic.
