@@ -82,7 +82,7 @@ This game will let a user with the lowest attempts win,s to be the highest score
     - Description: Returns all Scores recorded by the provided player (unordered).
     Will raise a NotFoundException if the User does not exist.
 
- - get_average_attempts
+ - **get_average_attempts**
     - Path: 'games/average_attempts'
     - Method: GET
     - Parameters: None
@@ -104,21 +104,21 @@ This game will let a user with the lowest attempts win,s to be the highest score
     - Returns: StringMessage.
     - Description: Returns a message confirming the cancellation of the game. Canceling a completed game will raise "This game has ended" error or will raice a 'A Game with that key does not exist! ' exception.
 
- - *get_high_scores*
+ - **get_high_scores**
     - Path: 'scores/high_scores'
     - Method: GET
     - Parameters: number_of_results
     - Returns: ScoreForms
     - Description: Returns number of Scores in the database limited by number_of_results and ordered by attempts_allowed, and guesses in ascending order.
 
- - *get_user_rankings*
+ - **get_user_rankings**
     - Path: 'scores/user_rankings'
     - Method: GET
     - Parameters: None
     - Returns: RankForms
     - Description: Returns all winning Scores in the database ordered by win_ratio in descending order.
 
- - *get_game_history*
+ - **get_game_history**
     - Path: 'game/{urlsafe_game_key}/get_game_history'
     - Method: GET
     - Parameters: urlsafe_game_key
