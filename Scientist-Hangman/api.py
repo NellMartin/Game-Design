@@ -1,21 +1,16 @@
-# -*- coding: utf-8 -*-`
-"""api.py - Create and configure the Game API exposing the resources.
-This can also contain game logic. For more complex games it would be wise to
-move game logic to another file. Ideally the API will be simple, concerned
-primarily with communication to/from the API's users."""
-
-
 import logging
 import endpoints
 from protorpc import remote, messages
 from google.appengine.api import memcache
 from google.appengine.api import taskqueue
+from decimal import Decimal
 
 from models import User, Game, Score
 from models import StringMessage, NewGameForm, GameForm, MakeMoveForm,\
     ScoreForms, GameForms, RankForms
-from utils import get_by_urlsafe
+from utils import get_by_urlsafe, set_score_at
 
+# ---- Requests ----
 NEW_GAME_REQUEST = endpoints.ResourceContainer(NewGameForm)
 GET_GAME_REQUEST = endpoints.ResourceContainer(
         urlsafe_game_key=messages.StringField(1),)
@@ -24,16 +19,15 @@ MAKE_MOVE_REQUEST = endpoints.ResourceContainer(
     urlsafe_game_key=messages.StringField(1),)
 USER_REQUEST = endpoints.ResourceContainer(user_name=messages.StringField(1),
                                            email=messages.StringField(2))
-
 GET_HIGH_SCORE_REQUEST = endpoints.ResourceContainer(
         number_of_results=messages.IntegerField(1),)
 
 MEMCACHE_MOVES_REMAINING = 'MOVES_REMAINING'
 
-@endpoints.api(name='guess_a_number', version='v1')
-class GuessANumberApi(remote.Service):
+@endpoints.api(name='scientific_hangman', version='v1')
+class HangmanPlayAPI(remote.Service):
 
-    """Game API"""
+    """Scientific Hangman API"""
     @endpoints.method(request_message=USER_REQUEST,
                       response_message=StringMessage,
                       path='user',
@@ -61,11 +55,8 @@ class GuessANumberApi(remote.Service):
             raise endpoints.NotFoundException(
                     'A User with that name does not exist!')
         try:
-
             game = Game.new_game(user.key, request.min,
-                                 request.max, request.attempts, request.target_word,
-                                 request.correct_attempts, request.letters_discovered)
-
+            request.max, request.attempts)
         except ValueError:
             raise endpoints.BadRequestException('Maximum must be greater '
                                                 'than minimum!')
@@ -74,113 +65,62 @@ class GuessANumberApi(remote.Service):
         # This operation is not needed to complete the creation of a new game
         # so it is performed out of sequence.
         taskqueue.add(url='/tasks/cache_average_attempts')
-        return game.to_form('Good luck playing Guess a Number!')
-
-    @endpoints.method(request_message=GET_GAME_REQUEST,
-                      response_message=GameForm,
-                      path='game/{urlsafe_game_key}',
-                      name='get_game',
-                      http_method='GET')
-    def get_game(self, request):
-        """Return the current game state."""
-        game = get_by_urlsafe(request.urlsafe_game_key, Game)
-        if game:
-            # game.letters_discovered = game.target_word
-            return game.to_form('Time to make a move!')
-        else:
-            raise endpoints.NotFoundException('Game not found!')
+        return game.to_form('Good luck playing Hangman!')
 
     @endpoints.method(request_message=MAKE_MOVE_REQUEST,
                       response_message=GameForm,
                       path='game/{urlsafe_game_key}',
                       name='make_move',
                       http_method='PUT')
-    def make_move(self, request):
-        """Makes a move. Returns a game state with message"""
-        game = get_by_urlsafe(request.urlsafe_game_key, Game)
-        user = game.user.get()
-        if game.game_over:
-            return game.to_form('Game already over!')
-
-        len_correct_word = len(list(game.target_word))
-
-        if len(request.guess) > 1 :
-            raise endpoints.BadRequestException('Only one capitalized letter '
-                                                'is allowed!')
-
-        if request.guess in game.target_word:
-
-            game.correct_attempts += self.analyze_guess(request.guess, game.target_word)
-
-            game.letters_discovered = self.update_word(request.guess, game.target_word, game.letters_discovered)
-
-
-            if self.guessedThemAll(game.letters_discovered, game.target_word):
-                user.num_win +=1
-                step = Decimal(user.num_win)/(Decimal(user.num_loss + user.num_win))
-                user.win_ratio = round(step,3)
-                user.put()
-                game.end_game(True)
-                game.put()
-                return game.to_form('You have won!')
-            # Update letters discovered.
-            game.put()
-            return game.to_form('Correct guess!')
-
-        if request.guess not in game.target_word:
-            game.attempts_remaining -= 1
-            msg = 'Wrong guess!'
-
-        if game.attempts_remaining < 1:
-            user.num_loss +=1
-            step = Decimal(user.num_win)/(Decimal(user.num_loss + user.num_win))
-            user.win_ratio = round(step,3)
+    def make_move(self,request):
+      """Makes a move. Returns a game state with a message, and analyze guesses"""
+      game = get_by_urlsafe(request.urlsafe_game_key, Game)
+      user = game.user.get()
+      if game.game_over:
+        return game.to_form('Game has ended!')
+      guess_Word = list(game.target)
+      score = []
+      [score.append('*') for i in range(len(guess_Word))]
+      guess = request.guess.upper()
+      # Validation of user entries
+      if len(guess) != 1:
+        msg = 'Please enter only one character.'
+      elif guess.isalpha() == False:
+        msg = 'Please dont enter a number.'
+      # If user didn't get the correct answer. Substract 1.
+      else:
+        if guess not in guess_Word:
+          game.attempts_remaining -=1
+          if game.attempts_remaining > 0:
+            [set_score_at(score,guess_Word,i) for i in game.correct]
+            msg = "Incorrect, you have %i attempts remaining. %s " % (game.attempts_remaining, ''.join(score))
+            game.add_game_history(msg,guess)
+          else:
+            msg = "Game Over!. The answer was %s. Game Over " % ''.join(guess_Word)
+            user.loss +=1
+            user.win_ratio = self.analyze_guess(user.win, user.loss)
             user.put()
-            game.end_game(False)
-            return game.to_form(msg + ' Word was: '+ game.target_word+' Game over!')
-        else:
+            game.add_game_history(msg,guess)
+            game.end_game()
+        elif guess in guess_Word:
+            [game.correct.append(i) for i in range(len(guess_Word)) if guess_Word[i] == guess and i not in game.correct]
             game.put()
-            return game.to_form(msg)
+            [set_score_at(score,guess_Word,i) for i in game.correct]
+            msg = ''.join(score)
+        if len(game.correct) == len(guess_Word):
+          user.win +=1
+          user.win_ratio = self.analyze_guess(user.win, user.loss)
+          user.put()
+          game.end_game(True)
+          msg = "You've won. The word was %s " % ''.join(game.target)
+          game.add_game_history(msg,guess)
+      return game.to_form(msg)
 
-    def analyze_guess(self, request_guess_char, target_word):
-        "Retrieves amount of matching chars in target_word from user input."
-        count = 0
-        word = list(target_word)
-        for c in word:
-            if  request_guess_char in c:
-                count +=1
-        return count
-
-    def update_word(self, request_guess_char, target_word, current_word):
-        "Give feedback to user on how he/she are discovering letters."
-        letters = []
-        letters.append(request_guess_char)
-        word = ""
-        currentWord = []
-
-        if current_word == None or current_word == "":
-            stars= []
-            stars = list(len(target_word) * '*')
-            for index,letter in enumerate(target_word):
-                if request_guess_char == letter:
-                    stars[index] = request_guess_char
-        else:
-            stars= []
-            if len(current_word) > 0 :
-                stars = list(current_word)
-                for index,letter in enumerate(target_word):
-                    if request_guess_char == letter:
-                        stars[index] = request_guess_char
-
-        word= ''.join(stars)
-        return word
-
-    def guessedThemAll(self, guessedWord, target_word):
-        "Retrieves amount of matching chars in target_word from user input."
-        if guessedWord == target_word:
-            return True
-        else:
-            return False
+    def analyze_guess(self, user_win, user_loss):
+        "Retrieves score of user win/loss ratio."
+        step = Decimal(user_win)/(Decimal(user_loss + user_win))
+        step = round(step,3)
+        return step
 
     @endpoints.method(response_message=ScoreForms,
                       path='scores',
@@ -222,7 +162,7 @@ class GuessANumberApi(remote.Service):
     # Cancel games.
     @endpoints.method(request_message=GET_GAME_REQUEST,
                   response_message=StringMessage,
-                  path='game/{urlsafe_game_key}',
+                  path='game/{urlsafe_game_key}/cancel',
                   name='cancel_game',
                   http_method='DELETE')
     def cancel_game(self, request):
@@ -260,6 +200,19 @@ class GuessANumberApi(remote.Service):
         users = User.query().order(-User.win_ratio)
         return RankForms(items=[user.rank_form() for user in users])
 
+    # Get game history
+    @endpoints.method(request_message=GET_GAME_REQUEST,
+                      response_message=StringMessage,
+                      path='game/{urlsafe_game_key}/get_game_history',
+                      name='get_game_history',
+                      http_method='GET')
+    def get_game_history(self, request):
+        """Return summary of each single game guesses."""
+        game = get_by_urlsafe(request.urlsafe_game_key, Game)
+        if not game:
+            raise endpoints.NotFoundException('Game not found')
+        return StringMessage(message=str(game.history))
+
     @endpoints.method(response_message=StringMessage,
                       path='games/average_attempts',
                       name='get_average_attempts_remaining',
@@ -281,6 +234,4 @@ class GuessANumberApi(remote.Service):
                          'The average moves remaining is {:.2f}'.format(average))
 
 
-
-
-api = endpoints.api_server([GuessANumberApi])
+api = endpoints.api_server([HangmanPlayAPI])

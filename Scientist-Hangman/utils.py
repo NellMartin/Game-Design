@@ -1,6 +1,7 @@
 """utils.py - File for collecting general utility functions."""
 
 import logging
+import random
 from google.appengine.ext import ndb
 import endpoints
 
@@ -33,3 +34,13 @@ def get_by_urlsafe(urlsafe, model):
     if not isinstance(entity, model):
         raise ValueError('Incorrect Kind')
     return entity
+
+def word_selected(min_length,max_length):
+    with open("scientificWords.txt") as wordfile:
+        words = [x.rstrip() for x in wordfile.readlines()]
+        words = filter(lambda x: len(x) >= min_length and len(x) <= max_length, words)
+        wordIndex = random.randint(0, len(words) - 1)
+    return words[wordIndex].upper()
+
+def set_score_at(score,secretWord,i):
+    score[i] = secretWord[i]

@@ -6,45 +6,42 @@ import random
 from datetime import date
 from protorpc import messages
 from google.appengine.ext import ndb
+from utils import word_selected
 
 
 class User(ndb.Model):
-    """User profile"""
+    """User profile for game."""
     name = ndb.StringProperty(required=True)
     email =ndb.StringProperty()
-    num_win = ndb.IntegerProperty(default = 0)
-    num_loss = ndb.IntegerProperty(default = 0)
+    win = ndb.IntegerProperty(default = 0)
+    loss = ndb.IntegerProperty(default = 0)
     win_ratio = ndb.FloatProperty()
     def rank_form(self):
         return RankForm(user_name = self.name,
                         email = self.email,
                         win_ratio = self.win_ratio,
-                        num_win = self.num_win,
-                        num_loss = self.num_loss)
-
+                        win = self.win,
+                        loss = self.loss)
 
 class Game(ndb.Model):
     """Game object"""
+    target = ndb.StringProperty(required=True)
     attempts_allowed = ndb.IntegerProperty(required=True)
+    attempts_remaining = ndb.IntegerProperty(required=True)
     game_over = ndb.BooleanProperty(required=True, default=False)
     user = ndb.KeyProperty(required=True, kind='User')
-    target_word = ndb.StringProperty(required=True)
-    attempts_remaining = ndb.IntegerProperty(required=True, default= 10)
-    correct_attempts = ndb.IntegerProperty(required=True, default=0)
-    letters_discovered = ndb.StringProperty(default='')
-
+    correct = ndb.IntegerProperty(repeated = True)
+    history = ndb.PickleProperty(required=True, default=[])
     @classmethod
-    def new_game(cls, user, min, max, attempts, target_word, correct_attempts, letters_discovered):
+    def new_game(cls, user, min, max, attempts):
         """Creates and returns a new game"""
-        if max < min:
-            raise ValueError('Maximum must be greater than minimum')
         game = Game(user=user,
-                    target_word="HANGMAN",
+                    target=word_selected(min,max),
                     attempts_allowed=attempts,
                     attempts_remaining=attempts,
-                    correct_attempts=correct_attempts,
-                    letters_discovered = letters_discovered,
-                    game_over=False)
+                    game_over=False,
+                    )
+        game.history = []
         game.put()
         return game
 
@@ -54,11 +51,13 @@ class Game(ndb.Model):
         form.urlsafe_key = self.key.urlsafe()
         form.user_name = self.user.get().name
         form.attempts_remaining = self.attempts_remaining
-        form.correct_attempts = self.correct_attempts
-        form.letters_discovered = self.letters_discovered
         form.game_over = self.game_over
         form.message = message
         return form
+
+    def add_game_history(self, result, guess):
+        self.history.append({'message': result, 'guess': guess})
+        self.put()
 
     def end_game(self, won=False):
         """Ends the game - if won is True, the player won. - if won is False,
@@ -67,23 +66,26 @@ class Game(ndb.Model):
         self.put()
         # Add the game to the score 'board'
         score = Score(user=self.user, date=date.today(), won=won,
-                      guesses=self.attempts_allowed - self.attempts_remaining)
+                      guesses=self.attempts_allowed - self.attempts_remaining, target=self.target,
+                      attempts_allowed=self.attempts_allowed)
         score.put()
-
-
 
 class Score(ndb.Model):
     """Score object"""
     user = ndb.KeyProperty(required=True, kind='User')
     date = ndb.DateProperty(required=True)
     won = ndb.BooleanProperty(required=True)
+    target= ndb.StringProperty()
     guesses = ndb.IntegerProperty(required=True)
     attempts_allowed = ndb.IntegerProperty(required = True)
 
     def to_form(self):
-        return ScoreForm(user_name=self.user.get().name, won=self.won,
-                         date=str(self.date), guesses=self.guesses)
-
+        return ScoreForm(user_name=self.user.get().name,
+                         won=self.won,
+                         date=str(self.date),
+                         target=self.target,
+                         attempts_allowed=self.attempts_allowed,
+                         guesses=self.guesses)
 
 class GameForm(messages.Message):
     """GameForm for outbound game state information"""
@@ -92,10 +94,6 @@ class GameForm(messages.Message):
     game_over = messages.BooleanField(3, required=True)
     message = messages.StringField(4, required=True)
     user_name = messages.StringField(5, required=True)
-    correct_attempts = messages.IntegerField(6, required=True)
-    letters_discovered = messages.StringField(7, required=True)
-    game_cancelled = messages.BooleanField(8, required=True)
-
 
 class NewGameForm(messages.Message):
     """Used to create a new game"""
@@ -103,10 +101,6 @@ class NewGameForm(messages.Message):
     min = messages.IntegerField(2, default=1)
     max = messages.IntegerField(3, default=10)
     attempts = messages.IntegerField(4, default=10)
-    target_word = messages.StringField(5, default='HANGMAN')
-    correct_attempts = messages.IntegerField(6, default=0)
-    letters_discovered = messages.StringField(7, default = '')
-
 
 class MakeMoveForm(messages.Message):
     """Used to make a move in an existing game"""
@@ -118,6 +112,8 @@ class ScoreForm(messages.Message):
     date = messages.StringField(2, required=True)
     won = messages.BooleanField(3, required=True)
     guesses = messages.IntegerField(4, required=True)
+    target = messages.StringField(5)
+    attempts_allowed =  messages.IntegerField(6)
 
 class GameForms(messages.Message):
     items = messages.MessageField(GameForm,1,repeated = True)
@@ -125,7 +121,6 @@ class GameForms(messages.Message):
 class ScoreForms(messages.Message):
     """Return multiple ScoreForms"""
     items = messages.MessageField(ScoreForm, 1, repeated=True)
-
 
 class StringMessage(messages.Message):
     """StringMessage-- outbound (single) string message"""
@@ -136,8 +131,8 @@ class RankForm(messages.Message):
     user_name = messages.StringField(1,required = True)
     email = messages.StringField(2)
     win_ratio = messages.FloatField(3)
-    num_win = messages.IntegerField(4)
-    num_loss = messages.IntegerField(5)
+    win = messages.IntegerField(4)
+    loss = messages.IntegerField(5)
 
 class RankForms(messages.Message):
     """Return multiple RankForms"""

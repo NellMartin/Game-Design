@@ -18,5 +18,11 @@ indexes:
 - kind: Score
   properties:
   - name: won
+  - name: attempts_allowed
+  - name: guesses
+
+- kind: Score
+  properties:
+  - name: won
   - name: guesses
     direction: desc

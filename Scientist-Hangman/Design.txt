@@ -1,0 +1,24 @@
+Design Reflection
+
+1. What additional properties did you add to your models and why?
+
+I added a couple of properties to my model. From the perspective of the user interaction I needed that the game:
+offered feedback on the state of discovered letters, and present the user of the completed word in either game won
+or game over state.
+
+On the other hand, the property of the rankins helped me to design a way to keep track of attempts allowed. If an user were able
+to discover the whole word in less attempts, then that user should be in the top players in the leader board. For
+this property for the game: in the User Model, I included 3 additional properties, wins, loss,  and win_ratio. 
+The win ratio, was a value that would be derived from these the win and loss properties, and is the actual ranking value 
+that is being used in the leaderboard.
+
+Words are being randomly being chosen from a text file. Initially I thought of having a hardcoded dictionary, but
+if I were going to be deploying this in the real world I would be needing a huge list of words, so I tried to mimic
+that behavior having a static list of scientific related words.
+
+2. What were some of the trade-offs or struggles you faced when implementing the new game logic?
+
+The main struggle that I faced when writing my Scientific Hangman game logic was figuring out a way to update 
+the state of the words everyi time a user submitted a guess. For that I tried to do static methods in api.py,
+but then after researching in the Udacity forums I discovered that's the reason why you need to update the
+models, so you can keeptrack of the states of different kinds and its properties.
