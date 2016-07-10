@@ -172,7 +172,7 @@ class HangmanPlayAPI(remote.Service):
             raise endpoints.NotFoundException(
                     'A Game with that key does not exist!')
         if game.game_over:
-          return game.to_form('This game has ended.')
+            return game.to_form('This game has ended.')
         game.key.delete()
         return StringMessage(message = 'Game Cancelled!')
 
