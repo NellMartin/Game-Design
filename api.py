@@ -1,14 +1,28 @@
-import logging
 import endpoints
 from protorpc import remote, messages
+from decimal import Decimal
 from google.appengine.api import memcache
 from google.appengine.api import taskqueue
-from decimal import Decimal
+from models import (
+    User,
+    Game,
+    Score
+    )
+from models import (
+    StringMessage,
+    NewGameForm,
+    GameForm,
+    MakeMoveForm,
+    ScoreForms,
+    GameForms,
+    RankForm,
+    RankForms
+    )
+from utils import (
+    get_by_urlsafe,
+    set_score_at
+    )
 
-from models import User, Game, Score
-from models import StringMessage, NewGameForm, GameForm, MakeMoveForm,\
-    ScoreForms, GameForms, RankForms
-from utils import get_by_urlsafe, set_score_at
 
 # ---- Requests ----
 NEW_GAME_REQUEST = endpoints.ResourceContainer(NewGameForm)
@@ -77,16 +91,18 @@ class HangmanPlayAPI(remote.Service):
       game = get_by_urlsafe(request.urlsafe_game_key, Game)
       user = game.user.get()
       if game.game_over:
-        return game.to_form('Game has ended!')
+          raise endpoints.ForbiddenException('Illegal action: Game is already over.')
       guess_Word = list(game.target)
       score = []
       [score.append('*') for i in range(len(guess_Word))]
       guess = request.guess.upper()
       # Validation of user entries
-      if len(guess) != 1:
-        msg = 'Please enter only one character.'
-      elif guess.isalpha() == False:
-        msg = 'Please dont enter a number.'
+      if guess.isalpha() == False:
+          msg = 'Please dont enter a number.'
+          game.add_game_history(msg,guess)
+      elif len(guess) != 1:
+          msg = 'Please enter only one character.'
+          game.add_game_history(msg,guess)
       # If user didn't get the correct answer. Substract 1.
       else:
         if guess not in guess_Word:
@@ -107,6 +123,7 @@ class HangmanPlayAPI(remote.Service):
             game.put()
             [set_score_at(score,guess_Word,i) for i in game.correct]
             msg = ''.join(score)
+            game.add_game_history(msg,guess)
         if len(game.correct) == len(guess_Word):
           user.win +=1
           user.win_ratio = self.analyze_guess(user.win, user.loss)
@@ -169,13 +186,12 @@ class HangmanPlayAPI(remote.Service):
         """Cancel an active game."""
         game = get_by_urlsafe(request.urlsafe_game_key,Game)
         if not game:
-            raise endpoints.NotFoundException(
-                    'A Game with that key does not exist!')
+            raise endpoints.NotFoundException('A Game with that key does not exist!')
         if game.game_over:
-            return game.to_form('This game has ended.')
-        game.key.delete()
-        return StringMessage(message = 'Game Cancelled!')
-
+            raise endpoints.ForbiddenException('Game has ended.')
+        else:
+            game.key.delete()
+            return StringMessage(message = 'Game Cancelled!')
     # Get High Scores
     @endpoints.method(request_message = GET_HIGH_SCORE_REQUEST,
                       response_message = ScoreForms,
@@ -203,11 +219,11 @@ class HangmanPlayAPI(remote.Service):
     # Get game history
     @endpoints.method(request_message=GET_GAME_REQUEST,
                       response_message=StringMessage,
-                      path='game/{urlsafe_game_key}/get_game_history',
+                      path='game/{urlsafe_game_key}/history',
                       name='get_game_history',
                       http_method='GET')
     def get_game_history(self, request):
-        """Return summary of each single game guesses."""
+        """Returns a summary of a game's guesses."""
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
         if not game:
             raise endpoints.NotFoundException('Game not found')

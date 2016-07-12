@@ -1,4 +1,4 @@
-#Full Stack Nanodegree Project 4 Scientific Hangman
+# Full Stack Nanodegree Project 4 Scientific Hangman
 
 ## Set-Up Instructions:
 1.  Update the value of application in app.yaml to the app ID you have registered
